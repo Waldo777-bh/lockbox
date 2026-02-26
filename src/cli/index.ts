@@ -57,6 +57,10 @@ export function registerCommands(program: Command): void {
   program
     .command('init')
     .description('Create a new encrypted vault')
+    .addHelpText('after', `
+Examples:
+  $ lockbox init
+`)
     .action(async () => {
       try {
         const config = loadConfig();
@@ -96,6 +100,11 @@ export function registerCommands(program: Command): void {
   program
     .command('unlock')
     .description('Unlock the vault with your master password')
+    .addHelpText('after', `
+Examples:
+  $ lockbox unlock
+  $ lockbox unlock    # session lasts 15 minutes
+`)
     .action(async () => {
       try {
         const config = loadConfig();
@@ -137,6 +146,10 @@ export function registerCommands(program: Command): void {
   program
     .command('lock')
     .description('Lock the vault and clear session')
+    .addHelpText('after', `
+Examples:
+  $ lockbox lock
+`)
     .action(() => {
       try {
         clearSession();
@@ -157,6 +170,13 @@ export function registerCommands(program: Command): void {
     .option('-p, --project <name>', 'Project name', 'default')
     .option('-n, --notes <text>', 'Notes about this key', '')
     .option('--expires <date>', 'Expiration date (ISO format)')
+    .addHelpText('after', `
+Examples:
+  $ lockbox add openai API_KEY sk-abc123
+  $ lockbox add stripe SECRET_KEY --project myapp
+  $ lockbox add aws ACCESS_KEY              # prompts for value
+  $ lockbox add github TOKEN --notes "PAT for CI"
+`)
     .action(async (service: string, keyName: string, value: string | undefined, opts) => {
       try {
         const vault = loadVaultFromSession();
@@ -191,6 +211,12 @@ export function registerCommands(program: Command): void {
     .argument('<service>', 'Service name')
     .argument('<key-name>', 'Key identifier')
     .option('-c, --copy', 'Copy to clipboard (auto-clears after 30s)')
+    .addHelpText('after', `
+Examples:
+  $ lockbox get openai API_KEY
+  $ lockbox get openai API_KEY --copy       # copies to clipboard, clears in 30s
+  $ lockbox get stripe SECRET | pbcopy      # pipe to other commands
+`)
     .action(async (service: string, keyName: string, opts) => {
       try {
         const vault = loadVaultFromSession();
@@ -218,6 +244,11 @@ export function registerCommands(program: Command): void {
     .command('list')
     .description('List all stored keys (names only, never values)')
     .option('-p, --project <name>', 'Filter by project name')
+    .addHelpText('after', `
+Examples:
+  $ lockbox list
+  $ lockbox list --project myapp
+`)
     .action((opts) => {
       try {
         const vault = loadVaultFromSession();
@@ -255,6 +286,11 @@ export function registerCommands(program: Command): void {
     .argument('<service>', 'Service name')
     .argument('<key-name>', 'Key identifier')
     .option('-f, --force', 'Skip confirmation')
+    .addHelpText('after', `
+Examples:
+  $ lockbox remove openai API_KEY
+  $ lockbox remove stripe SECRET --force    # skip confirmation
+`)
     .action(async (service: string, keyName: string, opts) => {
       try {
         const vault = loadVaultFromSession();
@@ -293,6 +329,11 @@ export function registerCommands(program: Command): void {
     .command('search')
     .description('Search keys by name, service, project, or notes')
     .argument('<query>', 'Search term')
+    .addHelpText('after', `
+Examples:
+  $ lockbox search openai
+  $ lockbox search production
+`)
     .action((query: string) => {
       try {
         const vault = loadVaultFromSession();
@@ -327,7 +368,11 @@ export function registerCommands(program: Command): void {
   // ── status ───────────────────────────────────────────────────────────────
   program
     .command('status')
-    .description('Show vault status')
+    .description('Show vault lock state, key count, and session info')
+    .addHelpText('after', `
+Examples:
+  $ lockbox status
+`)
     .action(() => {
       try {
         const config = loadConfig();
@@ -387,6 +432,12 @@ export function registerCommands(program: Command): void {
     .description('Export keys to stdout (env, json, or shell format)')
     .option('-p, --project <name>', 'Only export keys from this project')
     .option('-f, --format <format>', 'Output format: env, json, shell', 'env')
+    .addHelpText('after', `
+Examples:
+  $ lockbox export > .env
+  $ lockbox export --project myapp --format json
+  $ lockbox export --format shell >> ~/.bashrc
+`)
     .action((opts) => {
       try {
         const vault = loadVaultFromSession();
@@ -451,6 +502,11 @@ export function registerCommands(program: Command): void {
     .description('Import keys from a .env or JSON file')
     .argument('<file>', 'Path to .env or .json file')
     .option('-p, --project <name>', 'Assign imported keys to this project', 'default')
+    .addHelpText('after', `
+Examples:
+  $ lockbox import .env
+  $ lockbox import credentials.json --project myapp
+`)
     .action(async (file: string, opts) => {
       try {
         if (!existsSync(file)) {
@@ -522,6 +578,12 @@ export function registerCommands(program: Command): void {
     .description('Run a command with lockbox:// proxy env vars resolved from the vault')
     .argument('<command...>', 'Command to run (e.g. "npm start")')
     .option('--env-file <path>', 'Path to env file', '.env')
+    .addHelpText('after', `
+Examples:
+  $ lockbox run "npm start"
+  $ lockbox run --env-file .env.proxy "python app.py"
+  $ lockbox run "env | grep OPENAI"         # verify resolution
+`)
     .action(async (commandParts: string[], opts) => {
       try {
         const envFilePath: string = opts.envFile;
@@ -595,6 +657,12 @@ export function registerCommands(program: Command): void {
     .description('Generate a .env.proxy file with lockbox:// references (safe to commit)')
     .requiredOption('-p, --project <name>', 'Project name to generate proxy for')
     .option('-o, --output <path>', 'Output file path', '.env.proxy')
+    .addHelpText('after', `
+Examples:
+  $ lockbox proxy-init --project myapp
+  $ lockbox proxy-init -p myapp -o .env.staging
+  $ git add .env.proxy                      # safe to commit!
+`)
     .action(async (opts) => {
       try {
         const vault = loadVaultFromSession();
@@ -653,6 +721,12 @@ export function registerCommands(program: Command): void {
     .description('Show recent audit log entries')
     .option('--since <date>', 'Only show entries after this date (ISO 8601)')
     .option('-n, --limit <number>', 'Number of entries to show', '50')
+    .addHelpText('after', `
+Examples:
+  $ lockbox audit
+  $ lockbox audit --since 2025-01-01
+  $ lockbox audit -n 10
+`)
     .action((opts) => {
       try {
         const limit = parseInt(opts.limit, 10) || 50;
@@ -687,6 +761,10 @@ export function registerCommands(program: Command): void {
   program
     .command('doctor')
     .description('Run health checks on the vault')
+    .addHelpText('after', `
+Examples:
+  $ lockbox doctor
+`)
     .action(async () => {
       let issues = 0;
 

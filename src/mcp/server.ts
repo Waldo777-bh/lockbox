@@ -57,7 +57,7 @@ function toolResult(text: string, isError = false) {
 
 const server = new McpServer({
   name: 'lockbox',
-  version: '0.1.0',
+  version: '1.0.0',
 });
 
 // ─── Tool: store_secret ──────────────────────────────────────────────────────

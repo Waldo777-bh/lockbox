@@ -1,7 +1,7 @@
 {
   "name": "lockbox-vault",
-  "version": "0.1.0",
-  "description": "Encrypted API key vault for developers and AI coding agents",
+  "version": "1.0.0",
+  "description": "Encrypted API key vault with MCP integration for AI coding tools",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,14 +17,27 @@
   },
   "keywords": [
     "api-keys",
+    "secrets",
     "vault",
     "encryption",
-    "secrets",
     "mcp",
-    "cli"
+    "claude-code",
+    "cursor",
+    "developer-tools",
+    "security",
+    "env",
+    "dotenv"
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brentschroeter/lockbox.git"
+  },
+  "homepage": "https://yourlockbox.io",
+  "bugs": {
+    "url": "https://github.com/brentschroeter/lockbox/issues"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
