@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lockbox": {
+      "command": "node",
+      "args": ["C:\\Users\\US-Brent\\lockbox\\dist\\mcp\\server.js"]
+    }
+  }
+}

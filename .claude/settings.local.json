@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(where:*)",
+      "Bash(where npm:*)",
+      "Bash(echo:*)",
+      "Bash(cmd //c \"where node 2>NUL && where npm 2>NUL\")",
+      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source; Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr:*)",
+      "Bash(powershell.exe -NoProfile -Command '$env:Path -split \"\";\"\" | Where-Object { $_ -match \"\"node|npm|nvm|volta|fnm\"\" }')",
+      "Bash(winget:*)",
+      "Bash(powershell.exe -NoProfile -Command \"winget --version\")",
+      "Bash(\"/c/Program Files/nodejs/node.exe\" --version)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx tsc)",
+      "Bash(npx vitest run)",
+      "mcp__lockbox__list_projects",
+      "mcp__lockbox__list_secrets",
+      "Bash(npx tsx:*)",
+      "Bash(printf:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git -C /c/Users/US-Brent/lockbox log --oneline -5)",
+      "Bash(git -C /c/Users/US-Brent/lockbox diff HEAD)",
+      "Bash(git -C /c/Users/US-Brent/lockbox add package.json src/index.ts src/cli/index.ts src/mcp/server.ts README.md CHANGELOG.md)",
+      "Bash(git -C:*)",
+      "Bash(git -C /c/Users/US-Brent/lockbox status)"
+    ]
+  }
+}
