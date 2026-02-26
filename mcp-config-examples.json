@@ -1,0 +1,43 @@
+{
+  "_comment": "Copy the relevant config block into your AI tool's MCP configuration",
+
+  "claude_code": {
+    "_file": "~/.claude/claude_desktop_config.json",
+    "mcpServers": {
+      "lockbox": {
+        "command": "npx",
+        "args": ["lockbox-mcp"]
+      }
+    }
+  },
+
+  "claude_desktop": {
+    "_file": "~/Library/Application Support/Claude/claude_desktop_config.json (macOS) or %APPDATA%/Claude/claude_desktop_config.json (Windows)",
+    "mcpServers": {
+      "lockbox": {
+        "command": "npx",
+        "args": ["lockbox-mcp"]
+      }
+    }
+  },
+
+  "cursor": {
+    "_file": ".cursor/mcp.json (in project root) or ~/.cursor/mcp.json (global)",
+    "mcpServers": {
+      "lockbox": {
+        "command": "npx",
+        "args": ["lockbox-mcp"]
+      }
+    }
+  },
+
+  "windsurf": {
+    "_file": "~/.codeium/windsurf/mcp_config.json",
+    "mcpServers": {
+      "lockbox": {
+        "command": "npx",
+        "args": ["lockbox-mcp"]
+      }
+    }
+  }
+}
