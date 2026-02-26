@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+*.enc
+vault.enc
+lockbox-session
+*.log
+coverage/
+.DS_Store
+Thumbs.db

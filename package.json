@@ -1,0 +1,29 @@
+{
+  "name": "lockbox-vault",
+  "version": "0.1.0",
+  "description": "Encrypted API key vault for developers and AI coding agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "lockbox": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "api-keys",
+    "vault",
+    "encryption",
+    "secrets",
+    "mcp",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
