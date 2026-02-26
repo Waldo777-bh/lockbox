@@ -28,16 +28,21 @@
     "env",
     "dotenv"
   ],
-  "author": "",
+  "author": "Brent Hadfield",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/brentschroeter/lockbox.git"
+    "url": "https://github.com/Waldo777-bh/lockbox.git"
   },
-  "homepage": "https://yourlockbox.io",
+  "homepage": "https://yourlockbox.dev",
   "bugs": {
-    "url": "https://github.com/brentschroeter/lockbox/issues"
+    "url": "https://github.com/Waldo777-bh/lockbox/issues"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },

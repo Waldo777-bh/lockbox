@@ -32,7 +32,7 @@ if (process.argv.length <= 2) {
     process.stderr.write(`    ${chalk.green('$')} lockbox add openai API_KEY\n`);
     process.stderr.write(`    ${chalk.green('$')} lockbox get openai API_KEY\n`);
     process.stderr.write('\n');
-    process.stderr.write(chalk.dim(`  Docs: ${chalk.underline('https://yourlockbox.io')}\n`));
+    process.stderr.write(chalk.dim(`  Docs: ${chalk.underline('https://yourlockbox.dev')}\n`));
     process.stderr.write('\n');
     process.exit(0);
   }

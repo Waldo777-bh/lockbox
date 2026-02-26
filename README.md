@@ -165,10 +165,10 @@ The decrypted payload contains versioned key entries with per-key metadata (proj
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/brentschroeter/lockbox).
+Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/Waldo777-bh/lockbox).
 
 ```bash
-git clone https://github.com/brentschroeter/lockbox.git
+git clone https://github.com/Waldo777-bh/lockbox.git
 cd lockbox
 npm install
 npm run build
