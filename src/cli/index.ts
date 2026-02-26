@@ -2,8 +2,9 @@
  * CLI command registration — wires up all lockbox commands
  */
 
-import { existsSync, statSync, readFileSync } from 'node:fs';
+import { existsSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import type { Command } from 'commander';
 import ora from 'ora';
 import { Vault } from '../vault/vault.js';
@@ -28,6 +29,15 @@ import {
   exitWithError,
   chalk,
 } from './helpers.js';
+import {
+  envKeyName,
+  splitKeyName,
+  parseEnvFile as parseEnvImport,
+  parseJsonImport,
+  parseProxyUri,
+  buildProxyUri,
+  PROXY_PREFIX,
+} from './env-utils.js';
 
 // ─── Helper: load vault from active session ──────────────────────────────────
 
@@ -495,82 +505,130 @@ export function registerCommands(program: Command): void {
         exitWithError((err as Error).message);
       }
     });
+
+  // ── run ───────────────────────────────────────────────────────────────
+  program
+    .command('run')
+    .description('Run a command with lockbox:// proxy env vars resolved from the vault')
+    .argument('<command...>', 'Command to run (e.g. "npm start")')
+    .option('--env-file <path>', 'Path to env file', '.env')
+    .action(async (commandParts: string[], opts) => {
+      try {
+        const envFilePath: string = opts.envFile;
+
+        // 1. Read the env file
+        if (!existsSync(envFilePath)) {
+          throw new Error(`Env file not found: ${envFilePath}`);
+        }
+        const raw = readFileSync(envFilePath, 'utf8');
+        const entries = parseEnvImport(raw);
+
+        if (entries.length === 0) {
+          throw new Error(`No environment variables found in ${envFilePath}`);
+        }
+
+        // 2. Separate proxy refs from passthrough values
+        const proxyEntries: { envKey: string; service: string; keyName: string }[] = [];
+        const env: Record<string, string> = { ...process.env } as Record<string, string>;
+
+        for (const { key, value } of entries) {
+          const proxy = parseProxyUri(value);
+          if (proxy) {
+            proxyEntries.push({ envKey: key, ...proxy });
+          } else {
+            env[key] = value;
+          }
+        }
+
+        // 3. Resolve proxy references from the vault
+        if (proxyEntries.length > 0) {
+          const vault = loadVaultFromSession();
+
+          for (const { envKey, service, keyName } of proxyEntries) {
+            if (!vault.hasKey(service, keyName)) {
+              vault.lock();
+              throw new Error(
+                `Proxy reference ${PROXY_PREFIX}${service}/${keyName} not found in vault`
+              );
+            }
+            env[envKey] = vault.getKey(service, keyName);
+          }
+
+          vault.lock();
+          process.stderr.write(
+            chalk.dim(`Resolved ${proxyEntries.length} proxy reference(s) from vault.\n`)
+          );
+        }
+
+        // 4. Spawn the child process
+        const cmd = commandParts.join(' ');
+        const { status } = spawnSync(cmd, {
+          shell: true,
+          stdio: 'inherit',
+          env,
+        });
+
+        process.exit(status ?? 1);
+      } catch (err) {
+        exitWithError((err as Error).message);
+      }
+    });
+
+  // ── proxy-init ────────────────────────────────────────────────────────
+  program
+    .command('proxy-init')
+    .description('Generate a .env.proxy file with lockbox:// references (safe to commit)')
+    .requiredOption('-p, --project <name>', 'Project name to generate proxy for')
+    .option('-o, --output <path>', 'Output file path', '.env.proxy')
+    .action(async (opts) => {
+      try {
+        const vault = loadVaultFromSession();
+        const keys = vault.listKeys(opts.project);
+        vault.lock();
+
+        if (keys.length === 0) {
+          throw new Error(`No keys found in project "${opts.project}"`);
+        }
+
+        // Build the proxy env file content
+        const lines: string[] = [
+          `# Lockbox proxy env — project: ${opts.project}`,
+          `# Generated: ${new Date().toISOString()}`,
+          `# Safe to commit — contains only lockbox:// references, no real secrets`,
+          '',
+        ];
+
+        for (const key of keys) {
+          const slashIdx = key.name.indexOf('/');
+          const service = key.name.slice(0, slashIdx);
+          const keyName = key.name.slice(slashIdx + 1);
+          const envName = envKeyName(key.name);
+          lines.push(`${envName}=${buildProxyUri(service, keyName)}`);
+        }
+
+        lines.push(''); // trailing newline
+        const content = lines.join('\n');
+        const outputPath: string = opts.output;
+
+        // Check if file already exists
+        if (existsSync(outputPath)) {
+          const overwrite = await promptConfirm(
+            chalk.yellow(`${outputPath} already exists. Overwrite?`)
+          );
+          if (!overwrite) {
+            process.stderr.write(chalk.dim('Aborted.\n'));
+            return;
+          }
+        }
+
+        writeFileSync(outputPath, content, 'utf8');
+
+        process.stderr.write(chalk.green(`✓ Generated ${outputPath}\n`));
+        process.stderr.write(chalk.dim(`  ${keys.length} proxy reference(s) for project "${opts.project}"\n`));
+        process.stderr.write(chalk.dim(`  Run: lockbox run --env-file ${outputPath} "your-command"\n`));
+      } catch (err) {
+        exitWithError((err as Error).message);
+      }
+    });
 }
 
-// ─── Import/Export helpers ────────────────────────────────────────────────────
-
-/**
- * Convert a vault key name (e.g. "openai/API_KEY") to an env-style name.
- * "openai/API_KEY" → "OPENAI_API_KEY"
- */
-function envKeyName(name: string): string {
-  return name.replace(/\//g, '_').toUpperCase();
-}
-
-/**
- * Split a key name into [service, keyName].
- * If no "/" present, defaults to service "imported".
- */
-function splitKeyName(key: string): [string, string] {
-  if (key.includes('/')) {
-    const idx = key.indexOf('/');
-    return [key.slice(0, idx), key.slice(idx + 1)];
-  }
-  // Best guess: split on first underscore for service (e.g. OPENAI_API_KEY → openai, API_KEY)
-  const parts = key.split('_');
-  if (parts.length >= 2) {
-    return [parts[0].toLowerCase(), parts.slice(1).join('_')];
-  }
-  return ['imported', key];
-}
-
-/**
- * Parse a .env file into key-value pairs.
- * Supports: KEY=value, KEY="value", KEY='value'
- * Skips blank lines and # comments.
- */
-function parseEnvImport(raw: string): { key: string; value: string }[] {
-  const entries: { key: string; value: string }[] = [];
-
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim();
-    // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    // Skip lines without '='
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx === -1) continue;
-
-    const key = trimmed.slice(0, eqIdx).trim();
-    let value = trimmed.slice(eqIdx + 1).trim();
-
-    // Strip surrounding quotes
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-
-    if (key) {
-      entries.push({ key, value });
-    }
-  }
-
-  return entries;
-}
-
-/**
- * Parse a JSON file into key-value pairs.
- * Expects a flat { "KEY": "value" } object.
- */
-function parseJsonImport(raw: string): { key: string; value: string }[] {
-  const obj = JSON.parse(raw);
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-    throw new Error('JSON import expects a flat { "KEY": "value" } object');
-  }
-
-  return Object.entries(obj).map(([key, value]) => ({
-    key,
-    value: String(value),
-  }));
-}
