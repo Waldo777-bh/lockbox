@@ -38,6 +38,7 @@ import {
   buildProxyUri,
   PROXY_PREFIX,
 } from './env-utils.js';
+import { auditLog, readAuditLog } from '../mcp/audit.js';
 
 // ─── Helper: load vault from active session ──────────────────────────────────
 
@@ -82,6 +83,7 @@ export function registerCommands(program: Command): void {
         saveSession(vault.getDerivedKey(), vaultFile);
         vault.lock();
         spinner.succeed('Vault created and unlocked!');
+        auditLog('init', { vaultPath: vaultFile }, 'cli');
 
         process.stderr.write(chalk.dim(`  Location: ${vaultFile}\n`));
         process.stderr.write(chalk.dim(`  Auto-locks in 15 minutes.\n`));
@@ -124,6 +126,7 @@ export function registerCommands(program: Command): void {
         vault.lock();
 
         spinner.succeed('Vault unlocked!');
+        auditLog('unlock', {}, 'cli');
         process.stderr.write(chalk.dim('  Auto-locks in 15 minutes.\n'));
       } catch (err) {
         exitWithError((err as Error).message);
@@ -137,6 +140,7 @@ export function registerCommands(program: Command): void {
     .action(() => {
       try {
         clearSession();
+        auditLog('lock', {}, 'cli');
         process.stderr.write(chalk.green('✓ Vault locked.\n'));
       } catch (err) {
         exitWithError((err as Error).message);
@@ -170,6 +174,7 @@ export function registerCommands(program: Command): void {
         });
         await vault.save();
         vault.lock();
+        auditLog('add', { service, key_name: keyName, project: opts.project }, 'cli');
 
         process.stderr.write(
           chalk.green(`✓ Added ${service}/${keyName} to vault\n`)
@@ -191,6 +196,7 @@ export function registerCommands(program: Command): void {
         const vault = loadVaultFromSession();
         const value = vault.getKey(service, keyName);
         vault.lock();
+        auditLog('get', { service, key_name: keyName, copy: !!opts.copy }, 'cli');
 
         if (opts.copy) {
           await copyAndScheduleClear(value, 30);
@@ -217,6 +223,7 @@ export function registerCommands(program: Command): void {
         const vault = loadVaultFromSession();
         const keys = vault.listKeys(opts.project);
         vault.lock();
+        auditLog('list', { project: opts.project ?? 'all' }, 'cli');
 
         if (keys.length === 0) {
           process.stderr.write(
@@ -273,6 +280,7 @@ export function registerCommands(program: Command): void {
 
         await vault.save();
         vault.lock();
+        auditLog('remove', { service, key_name: keyName }, 'cli');
 
         process.stderr.write(chalk.green(`✓ Removed ${fullKey}\n`));
       } catch (err) {
@@ -384,6 +392,7 @@ export function registerCommands(program: Command): void {
         const vault = loadVaultFromSession();
         const pairs = vault.exportKeys(opts.project);
         vault.lock();
+        auditLog('export', { project: opts.project ?? 'all', format: opts.format, count: pairs.length }, 'cli');
 
         if (pairs.length === 0) {
           process.stderr.write(
@@ -495,6 +504,7 @@ export function registerCommands(program: Command): void {
 
         await vault.save();
         vault.lock();
+        auditLog('import', { file, project: opts.project, imported, skipped }, 'cli');
 
         process.stderr.write(
           chalk.green(`✓ Imported ${imported} key(s) into project '${opts.project}'`)
@@ -555,6 +565,11 @@ export function registerCommands(program: Command): void {
           }
 
           vault.lock();
+          auditLog('run', {
+            envFile: envFilePath,
+            proxiesResolved: proxyEntries.length,
+            keys: proxyEntries.map(({ service, keyName }) => `${service}/${keyName}`),
+          }, 'cli');
           process.stderr.write(
             chalk.dim(`Resolved ${proxyEntries.length} proxy reference(s) from vault.\n`)
           );
@@ -622,12 +637,137 @@ export function registerCommands(program: Command): void {
         }
 
         writeFileSync(outputPath, content, 'utf8');
+        auditLog('proxy-init', { project: opts.project, output: outputPath, count: keys.length }, 'cli');
 
         process.stderr.write(chalk.green(`✓ Generated ${outputPath}\n`));
         process.stderr.write(chalk.dim(`  ${keys.length} proxy reference(s) for project "${opts.project}"\n`));
         process.stderr.write(chalk.dim(`  Run: lockbox run --env-file ${outputPath} "your-command"\n`));
       } catch (err) {
         exitWithError((err as Error).message);
+      }
+    });
+
+  // ── audit ──────────────────────────────────────────────────────────────
+  program
+    .command('audit')
+    .description('Show recent audit log entries')
+    .option('--since <date>', 'Only show entries after this date (ISO 8601)')
+    .option('-n, --limit <number>', 'Number of entries to show', '50')
+    .action((opts) => {
+      try {
+        const limit = parseInt(opts.limit, 10) || 50;
+        const entries = readAuditLog(opts.since, limit);
+
+        if (entries.length === 0) {
+          process.stderr.write(
+            chalk.dim(opts.since
+              ? `No audit entries found since ${opts.since}.\n`
+              : 'No audit entries found.\n')
+          );
+          return;
+        }
+
+        const rows = entries.map((e) => [
+          shortDate(e.timestamp) + ' ' + e.timestamp.slice(11, 19),
+          e.source,
+          e.operation,
+          e.params.length > 60 ? e.params.slice(0, 57) + '...' : e.params,
+        ]);
+
+        process.stderr.write(
+          formatTable(['Time', 'Source', 'Operation', 'Details'], rows) + '\n'
+        );
+        process.stderr.write(chalk.dim(`\n${entries.length} entries shown\n`));
+      } catch (err) {
+        exitWithError((err as Error).message);
+      }
+    });
+
+  // ── doctor ─────────────────────────────────────────────────────────────
+  program
+    .command('doctor')
+    .description('Run health checks on the vault')
+    .action(async () => {
+      let issues = 0;
+
+      process.stderr.write(chalk.bold('Lockbox Doctor\n\n'));
+
+      // 1. Check vault file exists and is readable
+      const config = loadConfig();
+      const { vaultFile } = getPaths(config);
+
+      if (!existsSync(vaultFile)) {
+        process.stderr.write(chalk.red('  ✗ Vault file not found\n'));
+        process.stderr.write(chalk.dim(`    Expected at: ${vaultFile}\n`));
+        process.stderr.write(chalk.dim('    Run `lockbox init` to create a vault.\n'));
+        return;
+      }
+
+      const stats = statSync(vaultFile);
+      if (stats.size === 0) {
+        process.stderr.write(chalk.red('  ✗ Vault file is empty\n'));
+        issues++;
+      } else {
+        process.stderr.write(chalk.green('  ✓ Vault file exists and is readable\n'));
+      }
+
+      // 2. Check vault JSON is parseable
+      let vaultJson: { salt?: string; iv?: string; tag?: string; ciphertext?: string; hmac?: string } | null = null;
+      try {
+        const raw = readFileSync(vaultFile, 'utf8');
+        vaultJson = JSON.parse(raw);
+        const requiredFields = ['salt', 'iv', 'tag', 'ciphertext', 'hmac'];
+        const missing = requiredFields.filter((f) => !(f in (vaultJson as Record<string, unknown>)));
+        if (missing.length > 0) {
+          process.stderr.write(chalk.red(`  ✗ Vault file missing fields: ${missing.join(', ')}\n`));
+          issues++;
+        } else {
+          process.stderr.write(chalk.green('  ✓ Vault file structure is valid\n'));
+        }
+      } catch {
+        process.stderr.write(chalk.red('  ✗ Vault file is not valid JSON\n'));
+        issues++;
+      }
+
+      // 3. Verify HMAC integrity (requires unlocked session)
+      const session = loadSession();
+      if (session && vaultJson) {
+        try {
+          const vault = Vault.openWithKey(session.vaultPath, session.key);
+          vault.lock();
+          process.stderr.write(chalk.green('  ✓ HMAC integrity verified\n'));
+          process.stderr.write(chalk.green('  ✓ Decryption round-trip successful\n'));
+        } catch (err) {
+          const msg = (err as Error).message;
+          if (msg.includes('integrity') || msg.includes('tampered')) {
+            process.stderr.write(chalk.red('  ✗ Vault file has been tampered with or corrupted\n'));
+          } else {
+            process.stderr.write(chalk.red(`  ✗ Vault decryption failed: ${msg}\n`));
+          }
+          issues++;
+        }
+      } else if (!session) {
+        process.stderr.write(chalk.yellow('  ⚠ Vault is locked — cannot verify HMAC or decryption\n'));
+        process.stderr.write(chalk.dim('    Run `lockbox unlock` to enable full health check.\n'));
+      }
+
+      // 4. Check session file status
+      if (session) {
+        const remaining = sessionTimeRemaining();
+        const mins = remaining ? Math.floor(remaining / 60) : 0;
+        const secs = remaining ? remaining % 60 : 0;
+        process.stderr.write(chalk.green(`  ✓ Session active (${mins}m ${secs}s remaining)\n`));
+      } else {
+        process.stderr.write(chalk.dim('  ○ No active session (vault is locked)\n'));
+      }
+
+      // 5. Summary
+      process.stderr.write('\n');
+      if (issues === 0) {
+        process.stderr.write(chalk.green.bold('  ✓ Vault is healthy\n'));
+      } else {
+        process.stderr.write(chalk.red.bold(`  ✗ ${issues} issue(s) found\n`));
+        process.exit(1);
       }
     });
 }
