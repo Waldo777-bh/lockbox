@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('lockbox')
   .description('Encrypted API key vault with MCP integration for AI coding tools')
-  .version('1.0.0');
+  .version('1.0.1');
 
 registerCommands(program);
 

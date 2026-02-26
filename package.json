@@ -1,6 +1,6 @@
 {
   "name": "lockbox-vault",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Encrypted API key vault with MCP integration for AI coding tools",
   "type": "module",
   "main": "dist/index.js",
