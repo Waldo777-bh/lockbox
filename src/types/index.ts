@@ -35,4 +35,12 @@ export interface LockboxConfig {
   vaultPath: string;
   autoLockMinutes: number;
   defaultProject: string;
+  licenceKey?: string;
+}
+
+/** Cached tier validation result */
+export interface TierCache {
+  tier: string;
+  validatedAt: number;
+  keyLimit: number;
 }

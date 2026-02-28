@@ -39,6 +39,8 @@ import {
   PROXY_PREFIX,
 } from './env-utils.js';
 import { auditLog, readAuditLog } from '../mcp/audit.js';
+import { checkKeyLimitCLI, getTier, clearTierCache } from './tier.js';
+import { loadConfig as loadCfg, saveConfig as saveCfg } from '../vault/config.js';
 
 // ─── Helper: load vault from active session ──────────────────────────────────
 
@@ -180,6 +182,15 @@ Examples:
     .action(async (service: string, keyName: string, value: string | undefined, opts) => {
       try {
         const vault = loadVaultFromSession();
+
+        // Check tier key limit before adding
+        const config = loadCfg();
+        const currentKeys = vault.listKeys();
+        const limitCheck = await checkKeyLimitCLI(currentKeys.length, config.licenceKey);
+        if (!limitCheck.allowed) {
+          vault.lock();
+          exitWithError(limitCheck.message!);
+        }
 
         // If no value provided, prompt for it (hidden)
         if (!value) {
@@ -373,7 +384,7 @@ Examples:
 Examples:
   $ lockbox status
 `)
-    .action(() => {
+    .action(async () => {
       try {
         const config = loadConfig();
         const { vaultFile } = getPaths(config);
@@ -420,6 +431,19 @@ Examples:
           }
         } else {
           process.stderr.write(chalk.red('  Status:    Locked\n'));
+        }
+
+        // Tier info
+        const { tier, keyLimit } = await getTier(config.licenceKey);
+        process.stderr.write(
+          `  Tier:      ${tier === 'pro' ? chalk.green('Pro') : chalk.dim('Free')}` +
+            (tier === 'free' ? chalk.dim(` (${keyLimit} key limit)`) : '') +
+            '\n'
+        );
+        if (tier === 'free') {
+          process.stderr.write(
+            chalk.dim('  Upgrade:   lockbox upgrade\n')
+          );
         }
       } catch (err) {
         exitWithError((err as Error).message);
@@ -529,6 +553,22 @@ Examples:
           vault.lock();
           process.stderr.write(chalk.dim('No keys found in file.\n'));
           return;
+        }
+
+        // Check tier limit before importing
+        const cfg = loadCfg();
+        const currentKeys = vault.listKeys();
+        const newKeys = entries.filter(({ key }) => {
+          const [svc, kn] = splitKeyName(key);
+          return !vault.hasKey(svc, kn);
+        });
+        const totalAfter = currentKeys.length + newKeys.length;
+        const { tier, keyLimit } = await getTier(cfg.licenceKey);
+        if (keyLimit !== Infinity && totalAfter > keyLimit) {
+          vault.lock();
+          exitWithError(
+            `Import would exceed the Free tier limit of ${keyLimit} keys (${currentKeys.length} existing + ${newKeys.length} new = ${totalAfter}). Upgrade to Pro for unlimited keys.\n  Run: lockbox upgrade`
+          );
         }
 
         let imported = 0;
@@ -752,6 +792,97 @@ Examples:
           formatTable(['Time', 'Source', 'Operation', 'Details'], rows) + '\n'
         );
         process.stderr.write(chalk.dim(`\n${entries.length} entries shown\n`));
+      } catch (err) {
+        exitWithError((err as Error).message);
+      }
+    });
+
+  // ── config ──────────────────────────────────────────────────────────────
+  program
+    .command('config')
+    .description('View or update Lockbox configuration')
+    .option('--licence <key>', 'Set your Pro licence key')
+    .option('--show', 'Show current configuration')
+    .addHelpText('after', `
+Examples:
+  $ lockbox config --show
+  $ lockbox config --licence lbox_pro_abc123...
+`)
+    .action(async (opts) => {
+      try {
+        const config = loadCfg();
+
+        if (opts.licence) {
+          const key = opts.licence.trim();
+          if (!key.startsWith('lbox_pro_')) {
+            exitWithError('Invalid licence key format. Keys start with "lbox_pro_".');
+          }
+
+          config.licenceKey = key;
+          saveCfg(config);
+          clearTierCache();
+          auditLog('config', { action: 'set_licence' }, 'cli');
+
+          // Validate the key
+          const spinner = ora('Validating licence key...').start();
+          const { tier } = await getTier(key);
+
+          if (tier === 'pro') {
+            spinner.succeed('Licence key validated — Pro tier activated!');
+          } else {
+            spinner.warn('Licence key saved but could not validate. Pro features will activate once verified.');
+          }
+          return;
+        }
+
+        if (opts.show || !opts.licence) {
+          process.stderr.write(chalk.bold('Lockbox Configuration\n\n'));
+          process.stderr.write(`  Vault path:     ${config.vaultPath}\n`);
+          process.stderr.write(`  Auto-lock:      ${config.autoLockMinutes} minutes\n`);
+          process.stderr.write(`  Default project: ${config.defaultProject}\n`);
+          process.stderr.write(`  Licence key:    ${config.licenceKey ? config.licenceKey.slice(0, 14) + '...' : chalk.dim('(not set)')}\n`);
+
+          const { tier } = await getTier(config.licenceKey);
+          process.stderr.write(`  Tier:           ${tier === 'pro' ? chalk.green('Pro') : chalk.dim('Free')}\n`);
+        }
+      } catch (err) {
+        exitWithError((err as Error).message);
+      }
+    });
+
+  // ── upgrade ────────────────────────────────────────────────────────────
+  program
+    .command('upgrade')
+    .description('Upgrade to Lockbox Pro for unlimited vaults and keys')
+    .addHelpText('after', `
+Examples:
+  $ lockbox upgrade
+`)
+    .action(async () => {
+      try {
+        const config = loadCfg();
+        const { tier } = await getTier(config.licenceKey);
+
+        if (tier === 'pro') {
+          process.stderr.write(chalk.green('✓ You are already on the Pro plan!\n'));
+          process.stderr.write(chalk.dim('  Manage your subscription at: https://lockbox-dashboard-production.up.railway.app/dashboard/settings\n'));
+          return;
+        }
+
+        process.stderr.write(chalk.bold('\nLockbox Pro — $5/month or $48/year\n\n'));
+        process.stderr.write('  ✓ Unlimited vaults\n');
+        process.stderr.write('  ✓ Unlimited keys\n');
+        process.stderr.write('  ✓ Key expiry reminders\n');
+        process.stderr.write('  ✓ Priority support\n');
+        process.stderr.write('  ✓ Full dashboard write access\n\n');
+
+        process.stderr.write(chalk.cyan('To upgrade:\n'));
+        process.stderr.write('  1. Visit: https://lockbox-dashboard-production.up.railway.app/dashboard/pricing\n');
+        process.stderr.write('  2. Complete checkout\n');
+        process.stderr.write('  3. Copy your licence key from Settings → Subscription\n');
+        process.stderr.write(`  4. Run: ${chalk.bold('lockbox config --licence YOUR_KEY')}\n\n`);
+
+        auditLog('upgrade', { action: 'viewed' }, 'cli');
       } catch (err) {
         exitWithError((err as Error).message);
       }
