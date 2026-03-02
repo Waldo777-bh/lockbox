@@ -28,15 +28,15 @@
     "env",
     "dotenv"
   ],
-  "author": "Brent Hadfield",
+  "author": "lockboxdev",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Waldo777-bh/lockbox.git"
+    "url": "https://github.com/lockboxdev/lockbox.git"
   },
   "homepage": "https://yourlockbox.dev",
   "bugs": {
-    "url": "https://github.com/Waldo777-bh/lockbox/issues"
+    "url": "https://github.com/lockboxdev/lockbox/issues"
   },
   "files": [
     "dist",

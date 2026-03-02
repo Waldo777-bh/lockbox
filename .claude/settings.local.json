@@ -26,11 +26,28 @@
       "Bash(npx tsx:*)",
       "Bash(printf:*)",
       "Bash(npx tsc:*)",
-      "Bash(git -C /c/Users/US-Brent/lockbox log --oneline -5)",
-      "Bash(git -C /c/Users/US-Brent/lockbox diff HEAD)",
-      "Bash(git -C /c/Users/US-Brent/lockbox add package.json src/index.ts src/cli/index.ts src/mcp/server.ts README.md CHANGELOG.md)",
+      "Bash(git -C /c/Users/dev/lockbox log --oneline -5)",
+      "Bash(git -C /c/Users/dev/lockbox diff HEAD)",
+      "Bash(git -C /c/Users/dev/lockbox add package.json src/index.ts src/cli/index.ts src/mcp/server.ts README.md CHANGELOG.md)",
       "Bash(git -C:*)",
-      "Bash(git -C /c/Users/US-Brent/lockbox status)"
+      "Bash(git -C /c/Users/dev/lockbox status)",
+      "Bash(curl:*)",
+      "Bash(nslookup:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(python3:*)",
+      "Bash(git init:*)",
+      "Bash(npx prisma generate)",
+      "Bash(npx next build:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(test:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npx dotenv:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:lhlLxdFZntfoyThFsrTeTzvdUTJaGElU@mainline.proxy.rlwy.net:59870/railway\" npx prisma db push:*)",
+      "Bash(ls C:/Users/dev/lockbox-dashboard/src/app/api/vaults/[id]/)",
+      "Bash(ls -la C:/Users/dev/lockbox-dashboard/src/lib/validations.ts C:/Users/dev/lockbox-dashboard/src/app/api/vaults/route.ts C:/Users/dev/lockbox-dashboard/src/app/api/vaults/[id]/route.ts C:/Users/dev/lockbox-dashboard/src/app/api/vaults/[id]/export/route.ts C:/Users/dev/lockbox-dashboard/src/components/vaults/vault-card.tsx C:/Users/dev/lockbox-dashboard/src/components/vaults/vault-list-row.tsx C:/Users/dev/lockbox-dashboard/src/components/vaults/vault-toolbar.tsx C:/Users/dev/lockbox-dashboard/src/components/vaults/edit-vault-dialog.tsx C:/Users/dev/lockbox-dashboard/src/components/vaults/create-vault-dialog.tsx C:/Users/dev/lockbox-dashboard/src/components/keys/bulk-actions-bar.tsx C:/Users/dev/lockbox-dashboard/src/components/keys/key-row.tsx C:/Users/dev/lockbox-dashboard/src/app/dashboard/vaults/page.tsx C:/Users/dev/lockbox-dashboard/src/app/dashboard/vaults/[id]/page.tsx)",
+      "Bash(git status -u)",
+      "Bash(to Client Components\" serialization error.:*)"
     ]
   }
 }
