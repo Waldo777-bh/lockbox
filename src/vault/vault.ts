@@ -12,8 +12,8 @@
  *   { version, keys: { "service/KEY_NAME": SecretEntry }, metadata }
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { createHmac } from 'node:crypto';
+import { readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { encrypt, decrypt } from '../crypto/encryption.js';
 import { deriveKey, generateSalt } from '../crypto/keyDerivation.js';
 import { ensureConfigDir } from './config.js';
@@ -149,9 +149,11 @@ export class Vault {
     salt: Buffer,
     file: VaultFile,
   ): Vault {
-    // ── HMAC integrity check (before attempting decryption) ──
+    // ── HMAC integrity check (constant-time comparison to prevent timing attacks) ──
     const expectedHmac = computeHmac(file.ciphertext, key);
-    if (expectedHmac !== file.hmac) {
+    const expectedBuf = Buffer.from(expectedHmac, 'base64');
+    const actualBuf = Buffer.from(file.hmac, 'base64');
+    if (expectedBuf.length !== actualBuf.length || !timingSafeEqual(expectedBuf, actualBuf)) {
       throw new Error('Vault integrity check failed — file may be tampered or wrong password');
     }
 
@@ -325,7 +327,9 @@ export class Vault {
       hmac,
     };
 
-    writeFileSync(this.filePath, JSON.stringify(file, null, 2), 'utf8');
+    writeFileSync(this.filePath, JSON.stringify(file, null, 2), { encoding: 'utf8', mode: 0o600 });
+    // Ensure restrictive permissions even if file already existed
+    try { chmodSync(this.filePath, 0o600); } catch { /* Windows may not support chmod */ }
   }
 
   // ---------------------------------------------------------------------------

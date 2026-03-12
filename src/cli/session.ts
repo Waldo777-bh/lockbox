@@ -18,7 +18,7 @@
  *   Max 5 failures per 60 seconds; after that, lock out for 60 seconds.
  */
 
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, hostname, userInfo, homedir } from 'node:os';
 import { createHmac, randomBytes } from 'node:crypto';
@@ -26,8 +26,9 @@ import { encrypt, decrypt } from '../crypto/encryption.js';
 import { ensureConfigDir } from '../vault/config.js';
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
+// Session file stored in user config dir (not world-readable tmpdir)
 
-const SESSION_FILE = join(tmpdir(), 'lockbox-session');
+const SESSION_FILE = join(homedir(), '.config', 'lockbox', 'session');
 const RATE_LIMIT_FILE = join(homedir(), '.config', 'lockbox', 'rate-limit.json');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -40,11 +41,34 @@ const LOCKOUT_MS = 60 * 1000;                 // 60-second lockout after max fai
 // ─── Session key derivation ──────────────────────────────────────────────────
 
 /**
+ * Get or create a per-installation random salt.
+ * Stored alongside the session file so the session key is unique per install.
+ */
+const SALT_FILE = join(homedir(), '.config', 'lockbox', 'session-salt');
+
+function getInstallationSalt(): Buffer {
+  if (existsSync(SALT_FILE)) {
+    try {
+      return Buffer.from(readFileSync(SALT_FILE, 'utf8'), 'hex');
+    } catch {
+      // Corrupt salt — regenerate
+    }
+  }
+  const salt = randomBytes(32);
+  ensureConfigDir();
+  writeFileSync(SALT_FILE, salt.toString('hex'), { encoding: 'utf8', mode: 0o600 });
+  try { chmodSync(SALT_FILE, 0o600); } catch { /* Windows may not support chmod */ }
+  return salt;
+}
+
+/**
  * Derive a deterministic 32-byte session key from the current machine
- * environment. Same user + same machine = same key every time.
+ * environment plus a per-installation salt. Same user + same machine +
+ * same salt = same key every time.
  */
 function deriveSessionKey(): Buffer {
-  return createHmac('sha256', 'lockbox-session-key')
+  const salt = getInstallationSalt();
+  return createHmac('sha256', salt)
     .update(hostname())
     .update(userInfo().username)
     .update(homedir())
@@ -83,7 +107,9 @@ export function saveSession(derivedKey: Buffer, vaultPath: string): void {
     timestamp: Date.now(),
   };
 
-  writeFileSync(SESSION_FILE, JSON.stringify(session), 'utf8');
+  ensureConfigDir();
+  writeFileSync(SESSION_FILE, JSON.stringify(session), { encoding: 'utf8', mode: 0o600 });
+  try { chmodSync(SESSION_FILE, 0o600); } catch { /* Windows may not support chmod */ }
 }
 
 /**
